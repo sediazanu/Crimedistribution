@@ -1,0 +1,411 @@
+---
+pdf_document:
+  fig_height: 3
+  fig_width: 5
+  highlight: tango
+  latex_engine: xelatex
+  number_section: yes
+  toc: yes
+  toc_depth: 4
+output: pdf_document
+date: "30 April 2020"
+title: "Mathematical Skills 2- Recent advances - Statistics"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      cache=TRUE, autodep=TRUE, cache.comments=TRUE,
+                      fig.align="center", out.width = "50%"
+                      ) 
+```
+
+
+# Street Crime data of Lewisham
+
+The goal of the task is to show a graphical summary of the street crimes of the borough of Lewisham during 2019.
+The first command we use is to find the source location so that we can find where to store our files
+```{r, eval=FALSE}
+getwd()
+```
+### Downloading data on crimes in Lewisham from January 2019 to December 2019
+The police service responsible for the Greater London area (excluding City of London) is the Metropolitan police service. Therefore for the Lewisham borough, we will be looking into downloading the data information on the Metropolitan police.
+*We firstly go to the link <https://data.police.uk/data/> and click on the custom download tab.
+*We select a time range from January 2019 to December 2019
+*We select the Metropolitan Police as that is the service used in Lewisham
+*Only the crime data data set is selected.
+*We then generate the file the press the `Download now` button.
+*Once we unzip the files, there should be 12 folders with a corresponding date such as 2019-01 for January 2019, or 2019-02 for February 2019
+In each folder there should be a file such as `2019-01-metropolitan-street.csv` in 2019-01
+
+### Installing the packages
+
+Before we start loading the street crime data into R using the read_csv(), we want to install the `readr`, `dplyr`, `devtools` and `ggmap` packages, and then load them into R. We can achieve this by using the install.packages() function such as below
+
+```{r,eval=FALSE}
+install.packages('readr')
+install.packages('dplyr')
+if(!requireNamespace("devtools")) install.packages("devtools") 
+# installs devtools if not installed yet
+devtools::install_github("dkahle/ggmap") 
+# installs ggmap from GitHub
+```
+To use `ggmap` in paticular, the `devtools` package is required so that we can download the GitHub version of the package.
+As we are on the latest version of R (3.6.2), tidyverse does not need to be installed to get ggplot2.
+
+We next then load all the installed packages to Rstudio by using the following code:
+```{r, message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(devtools)
+library(ggmap)
+```
+## Loading the crime data onto RStudio
+
+We then want to read the crime data onto RStudio. We do this by using the read_csv function.
+\scriptsize
+```{r, message=FALSE}
+police1 <- read_csv("2019-01-metropolitan-street.csv")
+police2 <- read_csv("2019-02-metropolitan-street.csv")
+police3 <- read_csv("2019-03-metropolitan-street.csv")
+police4 <- read_csv("2019-04-metropolitan-street.csv")
+police5 <- read_csv("2019-05-metropolitan-street.csv")
+police6 <- read_csv("2019-06-metropolitan-street.csv")
+police7 <- read_csv("2019-07-metropolitan-street.csv")
+police8 <- read_csv("2019-08-metropolitan-street.csv")
+police9 <- read_csv("2019-09-metropolitan-street.csv")
+police10 <- read_csv("2019-10-metropolitan-street.csv")
+police11 <- read_csv("2019-11-metropolitan-street.csv")
+police12 <- read_csv("2019-12-metropolitan-street.csv")
+```
+\normalsize
+\medskip
+
+We dont want to have to work with multiple tibbles, so we bind the data into one tibble so that all the information will be in one place
+\scriptsize
+```{r}
+policex <- bind_rows(police1,police2,police3,police4,police5,police6,police7,police8,police9,police10,police11,police12)
+```
+\normalsize
+\medskip
+
+Now we want to create another tibble but one that only includes the variables `Month`, `Longitude`, `Latitude` and `Crime type`. It is quite difficult to use variables with spaces in RStudio so we change the `Crime type` variable to `Crimetype` before selecting the variables to use for our now tibble.
+\scriptsize
+```{r}
+policex %>% 
+  mutate(CrimeType = `Crime type`) %>% 
+  select(Month, Longitude, Latitude, CrimeType) -> policex
+policex
+```
+\normalsize
+\medskip
+### Getting location coordinates with geocode()
+We now want to find plot data for `Lewisham` and we can do this by using the `geocode()` from `ggmap` to get the longitude and latitude for the area.
+\scriptsize
+```{r}
+geocode("lewisham", source="dsk")
+```
+\normalsize
+\medskip
+We should now have the latitude and longtitude information for Lewisham. We now want to get a bounding area for the map. I ended up using the below coordinates.
+```{r}
+bbox <- c(-0.038, 51.45, 0.018, 51.47) 
+```
+### Downloading a map
+We are able to use the function get_map() to get a raster object with the map from Stamen Maps
+```{r, message=FALSE}
+LewishamMap <- get_map(location = bbox, source = "stamen", maptype = "toner")  
+```
+We can then display the map by using the `ggmap()` function:
+```{r, out.width="94%", fig.width=4, fig.height=4}
+ggmap(LewishamMap)
+```
+\footnotesize
+
+\hfill
+Map tiles by [Stamen Design](http://stamen.com), under [CC BY 3.0](http://creativecommons.org/licenses/by/3.0). Data by [OpenStreetMap](http://openstreetmap.org), under [ODbL](http://www.openstreetmap.org/copyright)
+\normalsize
+
+
+\bigskip  
+
+## Putting the data onto the map
+We now want to overlay the crime information onto the actual map.
+
+### Filtering the data
+We only want to keep the rows with longitudes and latitudes that fall within the map, we can use the bounding box `bbox` to do this
+\scriptsize
+```{r, message=FALSE}
+crimeLewisham <- filter(policex, bbox[1] <= Longitude, Longitude <= bbox[3],
+                    bbox[2] <= Latitude,  Latitude  <= bbox[4])
+crimeLewisham
+```
+\normalsize
+There is now 9999 observations which fall into the region selected, which is a lot less than 1108042. We now want to look at the frequency for each type of crime, which we do by using the following command:
+\scriptsize
+```{r,message=FALSE}
+table(crimeLewisham$CrimeType)
+```
+\normalsize
+\medskip
+
+We want to focus on the following crimes because they are the most commonly occuring crimes in the area chosen:
+*`Anti-social behaviour`
+*`Other theft`
+*`Vehicle crime`
+*`Violence and sexual offences`
+
+We use the `filter` function to restrict the table to only these four crime types:
+\scriptsize
+```{r}
+crimeLewisham %>% 
+  filter(CrimeType %in% c("Anti-social behaviour", "Violence and sexual offences", 
+                          "Other theft", "Vehicle crime")
+  ) -> crimeLewisham
+table(crimeLewisham$CrimeType)
+```
+\normalsize
+After this we can now put the locations of the selected crime types onto the map we are using.
+\pagebreak
+\scriptsize
+```{r, out.width="94%", fig.width=5, fig.height=5, warning=FALSE}
+MapPoints <- ggmap(LewishamMap) +
+  geom_point(aes(x = Longitude, y = Latitude, colour = CrimeType, shape=CrimeType),
+             size=1, data = crimeLewisham) + 
+  theme(legend.position = "top")
+
+MapPoints
+```
+\normalsize
+\footnotesize
+
+\hfill
+Map tiles by [Stamen Design](http://stamen.com), under [CC BY 3.0](http://creativecommons.org/licenses/by/3.0). Data by [OpenStreetMap](http://openstreetmap.org), under [ODbL](http://www.openstreetmap.org/copyright)
+
+\normalsize
+
+
+\bigskip  
+
+We can also display the crime types in seperate maps so that the data can be displayed more clearly.
+\scriptsize
+```{r, out.width="94%", fig.width=6, fig.height=6, warning=FALSE}
+MapCrimes <- ggmap(LewishamMap) +
+  geom_point(aes(x = Longitude, y = Latitude, colour = CrimeType),
+             size=1, data = crimeLewisham) +
+  theme(legend.position = "none") +  
+  facet_wrap(~ CrimeType)
+
+MapCrimes
+```
+\normalsize
+\footnotesize
+
+\hfill
+Map tiles by [Stamen Design](http://stamen.com), under [CC BY 3.0](http://creativecommons.org/licenses/by/3.0). Data by [OpenStreetMap](http://openstreetmap.org), under [ODbL](http://www.openstreetmap.org/copyright)
+
+\normalsize
+
+
+\bigskip  
+
+
+# Fish Landings data
+
+The goal of this task is to look through Fish Landings data given to us from the website <https://www.gov.uk/government/statistical-data-sets/uk-and-foreign-vessels-landings-by-uk-port-and-uk-vessel-landings-abroad>
+
+## Loading the data into RStudio
+The .ods Excel file contains 9 sheets, but we are only interested in the Pubishled_dataset_2014 to Published_dataset_2019 files. 
+*The numerical values of the last 3 columns are firstly displayed at their full precision so that we have reliable numerical information.
+*We then save each file seperately as a `csv` file so that we are able to load them into RStudio by using `read_csv()`
+```{r, message=FALSE}
+FishLanding2014 <- read_csv("Published_dataset_2014.csv")
+FishLanding2015 <- read_csv("Published_dataset_2015.csv")
+FishLanding2016 <- read_csv("Published_dataset_2016.csv")
+FishLanding2017 <- read_csv("Published_dataset_2017.csv")
+FishLanding2018 <- read_csv("Published_dataset_2018.csv")
+FishLanding2019 <- read_csv("Published_dataset_2019.csv")
+```
+\medskip
+The above information shows the variables that will be loaded along with their data type.
+
+## Working with the fish data in RStudio
+
+###Changing the 2019 variable names
+We firstly want to change the variable names of the 2019 file as some of them are different to the variable names in the 2014-2018 files.
+\tiny
+```{r}
+FishLanding2019 <- rename(FishLanding2019, 'Live weight (tonnes)'='Sum of Live weight (tonnes)', 'Landed weight (tonnes)'='Sum of Landed weight (tonnes)', 'Value(£000s)'='Sum of Value(£)')
+```
+\normalsize
+
+\medskip
+### Binding the rows together
+Before binding the rows together, we create an additional column to every tibble called 
+`Test` which adds the corresponding year to each tibble so that we can create a new `Time` variable later on.
+\tiny
+```{r}
+FishLanding2014 <-mutate(FishLanding2014, Test = 2014)
+FishLanding2015 <-mutate(FishLanding2015, Test = 2015)
+FishLanding2016 <-mutate(FishLanding2016, Test = 2016)
+FishLanding2017 <-mutate(FishLanding2017, Test = 2017)
+FishLanding2018 <-mutate(FishLanding2018, Test = 2018)
+FishLanding2019 <-mutate(FishLanding2019, Test = 2019)
+```
+\normalsize
+\medskip
+After this we now bind the tibbles together and add an additional column named year to link the dataframes back to their original tibble.
+\tiny
+```{r}
+landings <- bind_rows(FishLanding2014,FishLanding2015,FishLanding2016,FishLanding2017,FishLanding2018,FishLanding2019, .id="Year")
+```
+\normalsize
+\medskip
+We now add an additional column to the tibble `landings` called `Time` which has the class `Date`. We want to use dates such as `2014-01-15` so each observation has a middle of the month date corresponding to it. We also start removing spaces in many of the variables so that they are easier to work with.
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+landings <-rename(landings, 'MonthLanded'='Month Landed')
+landings <-mutate(landings, Time = as.Date(paste(Test, MonthLanded, 15, sep = "-")))
+landings <-rename(landings, 'PortofLanding'='Port of Landing')
+landings <-rename(landings, "LengthGroup"="Length Group")
+landings <-rename(landings, "Landedweighttonnes"="Landed weight (tonnes)")
+landings <-rename(landings, "Value"="Value(£000s)")
+landings <-rename(landings, "SpeciesGroup"="Species Group")
+```
+\medskip
+
+## Data on Whitby: Lobsters caught by vessels 10m and under
+
+We now want to filter out data in the tibbles of Lobstsers caught in Whitby by vessels 10m and lower. To do this we firstly use the `filter()` function to filter out the data on landings
+\scriptsize
+```{r}
+WhitbyU10mLobs <- filter(landings, PortofLanding == "Whitby", LengthGroup =="10m&Under", Species == "Lobsters")
+```
+\normalsize
+\medskip
+We now want to create a plot of `Landed weight` against `Time` and `Value` against `Time`. We do this using the `ggplot()` and `geom_point()` functions firstly for `Landed weight`:
+\tiny
+```{r, out.width="94%", fig.width=4, fig.height=4, warning=FALSE}
+LandingPlot1 <-ggplot(data= WhitbyU10mLobs) + geom_point(mapping = aes(x = Time, y = Landedweighttonnes)) + scale_y_log10()
+LandingPlot1
+```
+\normalsize
+And then `Value`
+```{r, out.width="94%", fig.width=4, fig.height=4, warning=FALSE}
+LandingPlot2 <-ggplot(data= WhitbyU10mLobs) + geom_point(mapping = aes(x = Time, y = Value)) + scale_y_log10()
+LandingPlot2
+```
+\medskip
+### Correcting erros
+As seen in the Value table, there is an inconsistency with the units for Value. We need to check this by checking the mean of the values by using the `summarise()` and `group_by()` functions:
+```{r}
+Correction <-WhitbyU10mLobs %>%
+  group_by(Year) %>%
+  summarise(Value = mean(Value))
+
+Correction
+```
+\medskip
+As we can see, the means for the 2017 and 2018 values are much larger than the other year values. To correct this we divide all the values in the `Value` column by 1000 in the 2017 and 2018 tibbles to get these values to normal.
+\tiny
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+FishLanding2014 <- read_csv("Published_dataset_2014.csv")
+FishLanding2015 <- read_csv("Published_dataset_2015.csv")
+FishLanding2016 <- read_csv("Published_dataset_2016.csv")
+FishLanding2017 <- read_csv("Published_dataset_2017.csv")
+FishLanding2018 <- read_csv("Published_dataset_2018.csv")
+FishLanding2019 <- read_csv("Published_dataset_2019.csv")
+
+FishLanding2019 <- rename(FishLanding2019, 'Live weight (tonnes)'='Sum of Live weight (tonnes)', 'Landed weight (tonnes)'='Sum of Landed weight (tonnes)')
+FishLanding2019 <- rename(FishLanding2019, 'Value(£000s)'='Sum of Value(£)')
+
+FishLanding2014 <-mutate(FishLanding2014, Test = 2014)
+FishLanding2015 <-mutate(FishLanding2015, Test = 2015)
+FishLanding2016 <-mutate(FishLanding2016, Test = 2016)
+FishLanding2017 <-mutate(FishLanding2017, Test = 2017)
+FishLanding2018 <-mutate(FishLanding2018, Test = 2018)
+FishLanding2019 <-mutate(FishLanding2019, Test = 2019)
+
+FishLanding2017 <-rename(FishLanding2017, "Value"="Value(£000s)")
+FishLanding2018 <-rename(FishLanding2018, "Value"="Value(£000s)")
+
+FishLanding2017 <-mutate(FishLanding2017, Value = Value/1000)
+FishLanding2018 <-mutate(FishLanding2018, Value = Value/1000)
+
+FishLanding2017 <-rename(FishLanding2017, "Value(£000s)"="Value")
+FishLanding2018 <-rename(FishLanding2018, "Value(£000s)"="Value")
+
+landings <- bind_rows(FishLanding2014,FishLanding2015,FishLanding2016,FishLanding2017,FishLanding2018,FishLanding2019, .id="Year")
+landings <-rename(landings, 'MonthLanded'='Month Landed')
+landings <-mutate(landings, Time = as.Date(paste(Test, MonthLanded, 15, sep = "-")))
+landings <-rename(landings, 'PortofLanding'='Port of Landing')
+landings <-rename(landings, "LengthGroup"="Length Group")
+landings <-rename(landings, "Landedweighttonnes"="Landed weight (tonnes)")
+landings <-rename(landings, "Value"="Value(£000s)")
+landings <-rename(landings, "SpeciesGroup"="Species Group")
+WhitbyU10mLobs <- filter(landings, PortofLanding == "Whitby", LengthGroup =="10m&Under", Species == "Lobsters")
+```
+\normalsize
+\medskip
+Now when we check the Correction tables and the second group, the values should be normal in comparison to the others
+\tiny
+```{r, out.width="94%", fig.width=4, fig.height=4, warning=FALSE}
+LandingPlot2 <-ggplot(data= WhitbyU10mLobs) + geom_point(mapping = aes(x = Time, y = Value))
+LandingPlot2 <- LandingPlot2 + scale_y_log10()
+LandingPlot2
+
+Correction <-WhitbyU10mLobs %>%
+  group_by(Year) %>%
+  summarise(Value = mean(Value))
+
+Correction
+```
+\normalsize
+\medskip
+
+## Landed weight by Vessel Nationality
+We now want to create a new tibble called `LandWeiByVessNat` Which has 3 variables: Time, Vessel Nationality and TotalLandedWeight, where the last variable shows the total landed weight of each nationality during each month. We firstly rename the Vessel Nationality column to not have a space before proceeding:
+
+```{r, message=FALSE}
+landings<- rename(landings, 'VesselNationality'='Vessel Nationality')
+
+LandWeiByVessNat <-select(landings, Time, VesselNationality)
+LandWeiByVessNat <-landings %>%
+  group_by(Time,VesselNationality) %>%
+  summarise(TotalLandedWeight = sum(Landedweighttonnes))
+```
+\medskip
+After this we plot the `Time` variable against `TotalLandedWeight`
+\tiny
+```{r, out.width="94%", fig.width=7.5, fig.height=7.5, warning=FALSE}
+LandingPlot3 <-ggplot(data= LandWeiByVessNat) + geom_point(mapping = aes(x = Time, y = TotalLandedWeight))
+LandingPlot3 <-LandingPlot3 + scale_y_log10() +geom_line(mapping = aes(x = Time, y = TotalLandedWeight)) +facet_wrap(~ VesselNationality, scales = 'free')
+LandingPlot3
+
+```
+\normalsize
+\medskip
+## Landing data of Demersals in December and January dates
+We want to plot in a boxplot the landing data of the `Species Group` Demersal in December and January months. We want to use the `summarize()`, `filter()` and `group_by()` functions as seen in previous sections
+\scriptsize
+```{r, out.width="94%", fig.width=18, fig.height=7.5, warning=FALSE}
+Demersal1 <- select(landings, Time, MonthLanded, Species, SpeciesGroup,Landedweighttonnes)
+Demersal1 <- filter(Demersal1,SpeciesGroup =="Demersal", MonthLanded ==12 | MonthLanded==1)
+Demersal2 <-Demersal1 %>%
+  group_by(Time,Species) %>%
+  summarise(TotalLandedWeight = sum(Landedweighttonnes))
+
+LandingPlot4 <-ggplot(Demersal2, aes(x=Species, y=TotalLandedWeight)) + geom_boxplot()
+LandingPlot4 <-LandingPlot4 + scale_y_log10()
+LandingPlot4
+```
+\normalsize
+\medskip
+This shows data on all the Species within the Species Group Demersal that were caught in the months January and December only from 2014-2019.
+
+# References
+
+
+Home Office (2020). [Data.Police.uk website.](https://data.police.uk/data/)
+
+Government UK: UK and foreign vessels landings but UK port and vessel landings abroad: 2014 to 2018 and 2019 (2020). [Gov.uk website.](https://www.gov.uk/government/statistical-data-sets/uk-and-foreign-vessels-landings-by-uk-port-and-uk-vessel-landings-abroad)
+
+Github; help with wrapping long code (2020) [github.com website.](https://github.com/rstudio/rmarkdown/issues/646)
